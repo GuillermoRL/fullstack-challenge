@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import type { AuthUseCases } from '../application'
+import type { AuthenticatedRequest } from '@shared/http'
 
 export class AuthController {
   constructor(private readonly authUseCases: AuthUseCases) {}
@@ -45,6 +46,64 @@ export class AuthController {
         res.status(401).json({ error: 'Invalid credentials' })
         return
       }
+      throw error
+    }
+  }
+
+  async refresh(req: Request, res: Response): Promise<void> {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      res.status(400).json({ error: 'Refresh token is required' })
+      return
+    }
+
+    try {
+      const result = this.authUseCases.refresh({ refreshToken })
+      res.json(result)
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('reuse detected')) {
+          res.status(401).json({ error: error.message })
+          return
+        }
+
+        if (error.message.includes('Invalid') || error.message.includes('expired')) {
+          res.status(401).json({ error: error.message })
+          return
+        }
+      }
+      throw error
+    }
+  }
+
+  async logout(req: Request, res: Response): Promise<void> {
+      const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      res.status(400).json({ error: 'Refresh token is required' })
+      return
+    }
+
+    try {
+      await this.authUseCases.logout(refreshToken)
+      res.json({ message: 'Logged out successfully' })
+    } catch (error) {
+      throw error
+    }
+  }
+  async logoutAll(req: Request, res: Response): Promise<void> {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      res.status(400).json({ error: 'Refresh token is required' })
+      return
+    }
+
+    try {
+      await this.authUseCases.logout(refreshToken)
+      res.json({ message: 'Logged out successfully' })
+    } catch (error) {
       throw error
     }
   }

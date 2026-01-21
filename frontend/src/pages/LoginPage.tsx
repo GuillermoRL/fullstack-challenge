@@ -19,7 +19,7 @@ export function LoginPage() {
 
     try {
       const response = await authService.login({ email, password })
-      login(response.token.accessToken, response.user)
+      login(response.token.accessToken, response.refreshToken, response.user)
       navigate('/dashboard')
     } catch (err) {
       if (err instanceof ApiError) {

@@ -1,11 +1,12 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react'
 import { authService, type User } from '../services'
 
 interface AuthContextType {
   user: User | null
   token: string | null
-  login: (token: string, user: User) => void
-  logout: () => void
+  login: (token: string, refreshToken: string, user: User) => void
+  logout: () => Promise<void>
+  logoutAll: () => Promise<void>
   isAuthenticated: boolean
   isLoading: boolean
 }
@@ -28,20 +29,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = (newToken: string, newUser: User) => {
+  const login = useCallback((newToken: string, newRefreshToken: string, newUser: User) => {
     authService.setToken(newToken)
+    authService.setRefreshToken(newRefreshToken)
     localStorage.setItem('user', JSON.stringify(newUser))
     setToken(newToken)
     setUser(newUser)
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(async () => {
+    const refreshToken = authService.getRefreshToken()
+
+    if (refreshToken) {
+      try {
+        await authService.logout(refreshToken)
+      } catch (error) {
+        console.error('Logout error', error)
+      }
+    }
+
     authService.removeToken()
+    authService.removeRefreshToken()
     localStorage.removeItem('user')
     setToken(null)
     setUser(null)
-  }
+  }, [])
 
+  const logoutAll = useCallback(async () => {
+    try {
+      await authService.logoutAll()
+    } catch (error) {
+      console.error('Logout all error', error)
+    }
+
+    authService.removeToken()
+    authService.removeRefreshToken()
+    localStorage.removeItem('user')
+    setToken(null)
+    setUser(null)
+  }, [])
   return (
     <AuthContext.Provider
       value={{
@@ -49,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         login,
         logout,
+        logoutAll,
         isAuthenticated: !!token,
         isLoading,
       }}

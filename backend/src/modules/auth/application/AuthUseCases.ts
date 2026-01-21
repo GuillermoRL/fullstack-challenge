@@ -1,10 +1,12 @@
 import type {
   RegisterDTO,
   LoginDTO,
+  RefreshTokenDTO,
   AuthResponse,
   AuthRepository,
   PasswordHasher,
   TokenGenerator,
+  RefreshTokenRepository,
 } from '../domain'
 import type { OrganizationRepository } from '@modules/organization/domain'
 import type { WorkflowRepository } from '@modules/workflow/domain'
@@ -15,7 +17,8 @@ export class AuthUseCases {
     private readonly passwordHasher: PasswordHasher,
     private readonly tokenGenerator: TokenGenerator,
     private readonly organizationRepository: OrganizationRepository,
-    private readonly workflowRepository: WorkflowRepository
+    private readonly workflowRepository: WorkflowRepository,
+    private readonly refreshTokenRepository: RefreshTokenRepository,
   ) {}
 
   async register(data: RegisterDTO): Promise<AuthResponse> {
@@ -54,6 +57,16 @@ export class AuthUseCases {
     })
 
     const token = this.tokenGenerator.generate(user.id, organization.id)
+  
+    // Generate and store refresh token
+    const { refreshToken, expiresAt } = this.tokenGenerator.generateRefreshToken()
+    this.refreshTokenRepository.create({
+      token: refreshToken,
+      userId: user.id,
+      expiresAt,
+      revokedAt: null,
+      replaceByToken: null 
+    })
 
     return {
       user: {
@@ -63,6 +76,7 @@ export class AuthUseCases {
         organizationId: user.organizationId,
       },
       token,
+      refreshToken,
     }
   }
 
@@ -86,6 +100,17 @@ export class AuthUseCases {
 
     const token = this.tokenGenerator.generate(user.id, user.organizationId)
 
+    // Revoke old refresh tokens and generate a new one
+    await this.refreshTokenRepository.revokeAllForUser(user.id)
+    const { refreshToken, expiresAt } = this.tokenGenerator.generateRefreshToken()
+    await this.refreshTokenRepository.create({
+      token: refreshToken,
+      userId: user.id,
+      expiresAt,
+      revokedAt: null,
+      replaceByToken: null,
+    })
+
     return {
       user: {
         id: user.id,
@@ -94,6 +119,61 @@ export class AuthUseCases {
         organizationId: user.organizationId,
       },
       token,
+      refreshToken,
     }
+  }
+
+  async refresh(data: RefreshTokenDTO): Promise<AuthResponse> {
+    const storedToken = await this.refreshTokenRepository.findByToken(data.refreshToken)
+
+    if (!storedToken) {
+      throw new Error('Invalid refresh token')
+    }
+
+    // token reuse - potential attack
+    if (storedToken.revokedAt) {
+      await this.refreshTokenRepository.revokeAllForUser(storedToken.userId)
+      throw new Error('Token reuse detected. All sessions have been revoked.')
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      throw new Error('Refresh token expired')
+    }
+
+    const user = await this.authRepository.findByEmail(storedToken.userId)
+    if (!user || !user.organizationId) {
+      throw new Error('User not found')
+    }
+
+    const token = this.tokenGenerator.generate(user.id, user.organizationId)
+    const { refreshToken: newRefreshToken, expiresAt } = this.tokenGenerator.generateRefreshToken()
+
+    await this.refreshTokenRepository.revokeToken(data.refreshToken, newRefreshToken)
+    await this.refreshTokenRepository.create({
+      token: newRefreshToken,
+      userId: user.id,
+      expiresAt,
+      revokedAt: null,
+      replaceByToken: null
+    })
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        organizationId: user.organizationId,
+      },
+      token,
+      refreshToken: newRefreshToken,
+    }
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.refreshTokenRepository.revokeToken(refreshToken)
+  }
+
+  async logoutAll(userId: string): Promise<void> {
+    await this.refreshTokenRepository.revokeAllForUser(userId)
   }
 }

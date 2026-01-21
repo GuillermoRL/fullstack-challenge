@@ -1,0 +1,9 @@
+export interface RefreshToken {
+    id: string
+    token: string
+    userId: string
+    expiresAt: Date
+    createdAt: Date
+    revokedAt: Date | null
+    replaceByToken: string | null
+}
