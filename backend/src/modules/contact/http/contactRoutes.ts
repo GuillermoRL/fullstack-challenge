@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from 'express'
 import type { ContactController } from './ContactController'
 import { validateRequest, uuidParamSchema, asyncHandler } from '@shared/http'
-import { createContactSchema, updateContactSchema } from './contact.schemas'
+import { createContactSchema, updateContactSchema, contactQuerySchema } from './contact.schemas'
 
 export function createContactRoutes(
   controller: ContactController,
@@ -11,7 +11,10 @@ export function createContactRoutes(
 
   router.use(authMiddleware)
 
-  router.get('/', asyncHandler((req, res) => controller.getAll(req as any, res)))
+  router.get(
+    '/',
+    validateRequest(contactQuerySchema, 'query'),
+    asyncHandler((req, res) => controller.getAll(req as any, res)))
   router.get(
     '/:id',
     validateRequest(uuidParamSchema, 'params'),

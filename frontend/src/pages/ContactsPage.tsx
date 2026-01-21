@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { contactService, type Contact } from '../services'
+import { Pagination } from '../components/Pagination'
+import { SearchInput } from '../components/SearchInput'
 import { contactSchema } from '@/schemas/contact.schemas'
 import { validateForm } from '@/utils/validation'
 import { ApiError } from '../services'
@@ -13,22 +15,37 @@ export function ContactsPage() {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [generalError, setGeneralError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    loadContacts()
-  }, [])
-
-  async function loadContacts() {
+  const loadContacts = useCallback(async () => {
     try {
-      const data = await contactService.getAll()
-      setContacts(data)
+      const result = await contactService.getAll({
+        page,
+        limit: 10,
+        search: search || undefined,
+      })
+      setContacts(result.data)
+      setTotalPages(result.meta.totalPages)
+      setTotal(result.meta.total)
     } catch (error) {
       console.error('Failed to load contacts:', error)
       setGeneralError('Failed to load contacts')
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, search])
+
+  useEffect(() => {
+    loadContacts()
+  }, [loadContacts])
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1)
+  }, [search])
 
   function openCreateForm() {
     setFormData({ name: '', email: '', phone: '' })
@@ -133,6 +150,9 @@ export function ContactsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Contacts</h1>
           <p className="text-slate-500 mt-1">Manage your contacts</p>
+          <p className="text-slate-500 mt-1">
+            {total} contact{total !== 1 ? 's' : ''} total
+          </p>
         </div>
         <button
           onClick={openCreateForm}
@@ -140,6 +160,14 @@ export function ContactsPage() {
         >
           Add Contact
         </button>
+      </div>
+
+      <div className="flex gap-4">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name, email, or phone..."
+        />
       </div>
 
       {showForm && (
@@ -221,6 +249,9 @@ export function ContactsPage() {
       )}
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        {loading && (
+          <div className="p-6 text-center text-slate-500">Loading...</div>
+        )}
         {contacts.length === 0 ? (
           <div className="p-6 text-center text-slate-500">
             No contacts yet. Add your first contact!

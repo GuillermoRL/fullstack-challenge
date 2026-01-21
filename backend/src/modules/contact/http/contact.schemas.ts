@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import { paginationSchema } from '@shared/http/pagination.schema'
+
+export const contactQuerySchema = paginationSchema.extend({
+  search: z.string().max(100).optional(),
+})
 
 export const createContactSchema = z.object({
   name: z
@@ -46,3 +51,4 @@ export const updateContactSchema = z.object({
 // Type inference for TS
 export type CreateContactInput = z.infer<typeof createContactSchema>
 export type UpdateContactInput = z.infer<typeof updateContactSchema>
+export type ContactQuery = z.infer<typeof contactQuerySchema>

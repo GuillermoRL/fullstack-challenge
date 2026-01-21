@@ -8,8 +8,17 @@ export class ContactController {
 
   async getAll(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { organizationId } = req.user
-    const contacts = await this.contactUseCases.getAllByOrganization(organizationId)
-    res.json(contacts)
+
+    const { page, limit, sortBy, sortOrder, search } = req.query as any
+    const result = await this.contactUseCases.getAllByOrganization(organizationId, {
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+      sortBy,
+      sortOrder,
+      search,
+    })
+
+    res.json(result)
   }
 
   async getById(req: AuthenticatedRequest, res: Response): Promise<void> {

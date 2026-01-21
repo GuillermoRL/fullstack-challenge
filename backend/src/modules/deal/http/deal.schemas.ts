@@ -1,4 +1,13 @@
 import { z } from 'zod'
+import { paginationSchema } from '@shared/http/pagination.schema'
+
+export const dealQuerySchema = paginationSchema.extend({
+  search: z.string().max(100).optional(),
+  status: z.enum(['open', 'won', 'lost']).optional(),
+  stageId: z.string().uuid().optional(),
+  minValue: z.coerce.number().nonnegative().optional(),
+  maxValue: z.coerce.number().nonnegative().optional(),
+})
 
 export const dealStatusSchema = z.enum(['open', 'won', 'lost'], {
   errorMap: () => ({ message: 'Status must be one of: open, won, lost' }),
@@ -53,3 +62,4 @@ export const updateDealSchema = z.object({
 // Type inference
 export type CreateDealInput = z.infer<typeof createDealSchema>
 export type UpdateDealInput = z.infer<typeof updateDealSchema>
+export type DealQuery = z.infer<typeof dealQuerySchema>
