@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
 import type { AuthUseCases } from '../application'
-import type { AuthenticatedRequest } from '@shared/http'
+import { ConflictError, UnauthorizedError } from '@shared/http'
 
 export class AuthController {
   constructor(private readonly authUseCases: AuthUseCases) {}
@@ -23,8 +23,7 @@ export class AuthController {
       res.status(201).json(result)
     } catch (error) {
       if (error instanceof Error && error.message.includes('already exists')) {
-        res.status(409).json({ error: error.message })
-        return
+        throw new ConflictError(error.message)
       }
       throw error
     }
@@ -43,8 +42,7 @@ export class AuthController {
       res.json(result)
     } catch (error) {
       if (error instanceof Error && error.message.includes('Invalid credentials')) {
-        res.status(401).json({ error: 'Invalid credentials' })
-        return
+        throw new UnauthorizedError('Invalid credentials')
       }
       throw error
     }
@@ -63,14 +61,10 @@ export class AuthController {
       res.json(result)
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message.includes('reuse detected')) {
-          res.status(401).json({ error: error.message })
-          return
-        }
-
-        if (error.message.includes('Invalid') || error.message.includes('expired')) {
-          res.status(401).json({ error: error.message })
-          return
+        if (error.message.includes('reuse detected') ||
+            error.message.includes('Invalid') ||
+            error.message.includes('expired')) {
+          throw new UnauthorizedError(error.message)
         }
       }
       throw error
@@ -78,33 +72,15 @@ export class AuthController {
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-      const { refreshToken } = req.body
-
-    if (!refreshToken) {
-      res.status(400).json({ error: 'Refresh token is required' })
-      return
-    }
-
-    try {
-      await this.authUseCases.logout(refreshToken)
-      res.json({ message: 'Logged out successfully' })
-    } catch (error) {
-      throw error
-    }
-  }
-  async logoutAll(req: Request, res: Response): Promise<void> {
     const { refreshToken } = req.body
 
-    if (!refreshToken) {
-      res.status(400).json({ error: 'Refresh token is required' })
-      return
-    }
+    await this.authUseCases.logout(refreshToken)
+    res.json({ message: 'Logged out successfully' })
+  }
+  async logoutAll(req: Request, res: Response): Promise<void> {
+    const authReq = req as any
 
-    try {
-      await this.authUseCases.logout(refreshToken)
-      res.json({ message: 'Logged out successfully' })
-    } catch (error) {
-      throw error
-    }
+    await this.authUseCases.logoutAll(authReq.user.userId)
+    res.json({ message: 'Logged out from all devices' })
   }
 }

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { contactService, type Contact } from '../services'
+import { contactSchema } from '@/schemas/contact.schemas'
+import { validateForm } from '@/utils/validation'
+import { ApiError } from '../services'
 
 export function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -8,6 +11,8 @@ export function ContactsPage() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [generalError, setGeneralError] = useState<string | null>(null)
 
   useEffect(() => {
     loadContacts()
@@ -19,6 +24,7 @@ export function ContactsPage() {
       setContacts(data)
     } catch (error) {
       console.error('Failed to load contacts:', error)
+      setGeneralError('Failed to load contacts')
     } finally {
       setLoading(false)
     }
@@ -27,6 +33,8 @@ export function ContactsPage() {
   function openCreateForm() {
     setFormData({ name: '', email: '', phone: '' })
     setEditingContact(null)
+    setErrors({})
+    setGeneralError(null)
     setShowForm(true)
   }
 
@@ -37,11 +45,39 @@ export function ContactsPage() {
       phone: contact.phone || '',
     })
     setEditingContact(contact)
+    setErrors({})
+    setGeneralError(null)
     setShowForm(true)
+  }
+
+  function handleBlur(field: keyof typeof formData) {
+    const validation = validateForm(contactSchema, formData)
+    if (!validation.success) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: validation.errors[field] || '',
+      }))
+    } else {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      })
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setGeneralError(null)
+
+    // Validate before submitting
+    const validation = validateForm(contactSchema, formData)
+    if (!validation.success) {
+      setErrors(validation.errors)
+      return
+    }
+
+    setErrors({})
     setSaving(true)
 
     try {
@@ -53,7 +89,23 @@ export function ContactsPage() {
       await loadContacts()
       setShowForm(false)
     } catch (error) {
-      console.error('Failed to save contact:', error)
+      if (error instanceof ApiError) {
+        // Check if it's a validation error from backend
+        const responseData = await error as any
+        if (responseData.details?.fieldErrors) {
+          const fieldErrors: Record<string, string> = {}
+          for (const [field, messages] of Object.entries(
+            responseData.details.fieldErrors as Record<string, string[]>
+          )) {
+            fieldErrors[field] = messages[0]
+          }
+          setErrors(fieldErrors)
+        } else {
+          setGeneralError(error.message)
+        }
+      } else {
+        setGeneralError('Failed to save contact')
+      }
     } finally {
       setSaving(false)
     }
@@ -67,6 +119,7 @@ export function ContactsPage() {
       await loadContacts()
     } catch (error) {
       console.error('Failed to delete contact:', error)
+      setGeneralError('Failed to delete contact')
     }
   }
 
@@ -94,6 +147,13 @@ export function ContactsPage() {
           <h2 className="text-lg font-semibold text-slate-900 mb-4">
             {editingContact ? 'Edit Contact' : 'New Contact'}
           </h2>
+
+          {generalError && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {generalError}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
@@ -101,9 +161,14 @@ export function ContactsPage() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onBlur={() => handleBlur('name')}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  errors.name ? 'border-red-500' : 'border-slate-300'
+                } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
               />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
@@ -111,8 +176,14 @@ export function ContactsPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onBlur={() => handleBlur('email')}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  errors.email ? 'border-red-500' : 'border-slate-300'
+                } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
               />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
@@ -120,8 +191,14 @@ export function ContactsPage() {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onBlur={() => handleBlur('phone')}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  errors.phone ? 'border-red-500' : 'border-slate-300'
+                } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
               />
+              {errors.phone && (
+                <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+              )}
             </div>
             <div className="flex gap-3">
               <button

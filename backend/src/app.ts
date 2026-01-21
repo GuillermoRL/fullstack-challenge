@@ -1,7 +1,7 @@
 import express, { type Express } from 'express'
 import cors from 'cors'
 import type { DataSource } from 'typeorm'
-import { createAuthMiddleware } from '@shared/http'
+import { createAuthMiddleware, errorHandler } from '@shared/http'
 import {
   UserUseCases,
   UserEntity,
@@ -125,7 +125,7 @@ export function createApp(dataSource: DataSource): Express {
   app.use('/api/contacts', createContactRoutes(contactController, authMiddleware))
   app.use('/api/workflows', createWorkflowRoutes(workflowController, authMiddleware))
   app.use('/api/deals', createDealRoutes(dealController, authMiddleware))
-
+  app.use(errorHandler)
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() })

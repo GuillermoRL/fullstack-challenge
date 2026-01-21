@@ -1,6 +1,7 @@
 import type { Response } from 'express'
 import type { AuthenticatedRequest } from '@shared/http'
 import type { ContactUseCases } from '../application'
+import { NotFoundError, ForbiddenError } from '@shared/http'
 
 export class ContactController {
   constructor(private readonly contactUseCases: ContactUseCases) {}
@@ -16,14 +17,12 @@ export class ContactController {
     const contact = await this.contactUseCases.getContactById(id)
 
     if (!contact) {
-      res.status(404).json({ error: 'Contact not found' })
-      return
+      throw new NotFoundError('Contact')
     }
 
     // Ensure contact belongs to user's organization
     if (contact.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     res.json(contact)
@@ -53,13 +52,11 @@ export class ContactController {
 
     const existing = await this.contactUseCases.getContactById(id)
     if (!existing) {
-      res.status(404).json({ error: 'Contact not found' })
-      return
+      throw new NotFoundError('Contact')
     }
 
     if (existing.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     const contact = await this.contactUseCases.updateContact(id, {
@@ -76,13 +73,11 @@ export class ContactController {
 
     const existing = await this.contactUseCases.getContactById(id)
     if (!existing) {
-      res.status(404).json({ error: 'Contact not found' })
-      return
+      throw new NotFoundError('Contact')
     }
 
     if (existing.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     await this.contactUseCases.deleteContact(id)
