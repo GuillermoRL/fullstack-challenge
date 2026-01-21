@@ -15,6 +15,7 @@ export interface AuthToken {
 export interface AuthResponse {
   user: User
   token: AuthToken
+  refreshToken: string
 }
 
 export interface LoginCredentials {
@@ -34,12 +35,27 @@ export const authService = {
 
   register: (credentials: RegisterCredentials) =>
     api.post<AuthResponse>('/auth/register', credentials),
+  
+  refresh: (refreshToken: string) =>
+    api.post<AuthResponse>('/auth/refresh', { refreshToken }),
+
+  logout: (refreshToken: string) =>
+    api.post<{ message: string }>('/auth/logout', { refreshToken }),
+
+  logoutAll: () =>
+    api.post<{ message: string }>('/auth/logout-all'),
 
   getToken: () => localStorage.getItem('token'),
 
   setToken: (token: string) => localStorage.setItem('token', token),
 
   removeToken: () => localStorage.removeItem('token'),
+  
+  getRefreshToken: () => localStorage.getItem('refreshToken'),
+  
+  setRefreshToken: (token: string) => localStorage.setItem('refreshToken', token),
+  
+  removeRefreshToken: () => localStorage.removeItem('refreshToken'),
 
   isAuthenticated: () => !!localStorage.getItem('token'),
 }

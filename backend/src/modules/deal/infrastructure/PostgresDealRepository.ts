@@ -1,16 +1,50 @@
 import type { Repository } from 'typeorm'
-import type { Deal, CreateDealDTO, UpdateDealDTO, DealRepository } from '../domain'
+import type { Deal, CreateDealDTO, UpdateDealDTO, DealRepository, DealFilterParams } from '../domain'
 import { DealEntity } from './DealEntity'
+import { PaginatedResult } from '@shared/types/pagination'
 
 export class PostgresDealRepository implements DealRepository {
   constructor(private readonly repository: Repository<DealEntity>) {}
 
-  async findAllByOrganization(organizationId: string): Promise<Deal[]> {
-    const entities = await this.repository.find({
-      where: { organizationId },
-      order: { createdAt: 'DESC' },
-    })
-    return entities.map((e) => e.toDomain())
+  async findAllByOrganization(
+    organizationId: string,
+    params?: DealFilterParams
+  ): Promise<PaginatedResult<Deal>> {
+    const page = params?.page ?? DEFAULT_PAGE
+    const limit = params?.limit ?? DEFAULT_LIMIT
+    const sortBy = params?.sortBy ?? 'createdAt'
+    const sortOrder = params?.sortOrder ?? 'DESC'
+
+    const qb = this.repository.createQueryBuilder('deal')
+      .where('deal.organizationId = :organizationId', { organizationId })
+
+    // Status filter
+    if (params?.status) {
+      qb.andWhere('deal.status = :status', { status: params.status })
+    }
+
+    // Stage filter
+    if (params?.stageId) {
+      qb.andWhere('deal.stageId = :stageId', { stageId: params.stageId })
+    }
+
+    // Value range filters
+    if (params?.minValue !== undefined) {
+      qb.andWhere('deal.value >= :minValue', { minValue: params.minValue })
+    }
+    if (params?.maxValue !== undefined) {
+      qb.andWhere('deal.value <= :maxValue', { maxValue: params.maxValue })
+    }
+
+    qb.orderBy(`deal.${sortBy}`, sortOrder)
+      .skip((page - 1) * limit)
+      .take(limit)
+
+    const [entities, total] = await qb.getManyAndCount()
+    return {
+      data: entities.map((e) => e.toDomain()),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    }
   }
 
   async findById(id: string): Promise<Deal | null> {

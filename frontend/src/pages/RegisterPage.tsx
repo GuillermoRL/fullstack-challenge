@@ -20,7 +20,7 @@ export function RegisterPage() {
 
     try {
       const response = await authService.register({ name, email, password })
-      login(response.token.accessToken, response.user)
+      login(response.token.accessToken, response.refreshToken, response.user)
       navigate('/dashboard')
     } catch (err) {
       if (err instanceof ApiError) {

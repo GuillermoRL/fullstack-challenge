@@ -14,6 +14,10 @@ export interface AuthToken {
   expiresAt: Date
 }
 
+export interface RefreshTokenDTO {
+  refreshToken: string
+}
+
 export interface AuthUser {
   id: string
   organizationId: string | null
@@ -31,4 +35,5 @@ export interface AuthResponse {
     organizationId: string | null
   }
   token: AuthToken
+  refreshToken: string
 }

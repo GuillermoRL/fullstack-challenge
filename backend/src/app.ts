@@ -1,7 +1,7 @@
 import express, { type Express } from 'express'
 import cors from 'cors'
 import type { DataSource } from 'typeorm'
-import { createAuthMiddleware } from '@shared/http'
+import { createAuthMiddleware, errorHandler } from '@shared/http'
 import {
   UserUseCases,
   UserEntity,
@@ -46,6 +46,7 @@ import {
   DealController,
   createDealRoutes,
 } from '@modules/deal'
+import { PostgresRefreshTokenRepository } from '@modules/auth/infrastructure/PostgresRefreshTokenRepository'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your-secret-key-change-in-production'
 
@@ -89,12 +90,15 @@ export function createApp(dataSource: DataSource): Express {
     dataSource.getRepository(UserEntity)
   )
   const passwordHasher = new BcryptPasswordHasher()
+  const refreshTokenRepository = new PostgresRefreshTokenRepository(dataSource)
+
   const authUseCases = new AuthUseCases(
     authRepository,
     passwordHasher,
     tokenGenerator,
     organizationRepository,
-    workflowRepository
+    workflowRepository,
+    refreshTokenRepository,
   )
   const authController = new AuthController(authUseCases)
 
@@ -113,7 +117,7 @@ export function createApp(dataSource: DataSource): Express {
   const dealController = new DealController(dealUseCases)
 
   // Routes (public)
-  app.use('/api/auth', createAuthRoutes(authController))
+  app.use('/api/auth', createAuthRoutes(authController, authMiddleware))
   app.use('/api/users', createUserRoutes(userController))
 
   // Routes (protected - require auth)
@@ -121,7 +125,7 @@ export function createApp(dataSource: DataSource): Express {
   app.use('/api/contacts', createContactRoutes(contactController, authMiddleware))
   app.use('/api/workflows', createWorkflowRoutes(workflowController, authMiddleware))
   app.use('/api/deals', createDealRoutes(dealController, authMiddleware))
-
+  app.use(errorHandler)
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() })

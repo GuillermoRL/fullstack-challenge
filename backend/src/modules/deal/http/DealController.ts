@@ -1,6 +1,7 @@
 import type { Response } from 'express'
 import type { AuthenticatedRequest } from '@shared/http'
 import type { DealUseCases } from '../application'
+import { NotFoundError, ForbiddenError } from '@shared/http'
 
 export class DealController {
   constructor(private readonly dealUseCases: DealUseCases) {}
@@ -16,13 +17,11 @@ export class DealController {
     const deal = await this.dealUseCases.getDealById(id)
 
     if (!deal) {
-      res.status(404).json({ error: 'Deal not found' })
-      return
+      throw new NotFoundError('Deal')
     }
 
     if (deal.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     res.json(deal)
@@ -31,11 +30,6 @@ export class DealController {
   async create(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { organizationId } = req.user
     const { contactId, stageId, title, value } = req.body
-
-    if (!title || value === undefined) {
-      res.status(400).json({ error: 'title and value are required' })
-      return
-    }
 
     const deal = await this.dealUseCases.createDeal({
       organizationId,
@@ -53,13 +47,11 @@ export class DealController {
 
     const existing = await this.dealUseCases.getDealById(id)
     if (!existing) {
-      res.status(404).json({ error: 'Deal not found' })
-      return
+      throw new NotFoundError('Deal')
     }
 
     if (existing.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     const deal = await this.dealUseCases.updateDeal(id, {
@@ -78,13 +70,11 @@ export class DealController {
 
     const existing = await this.dealUseCases.getDealById(id)
     if (!existing) {
-      res.status(404).json({ error: 'Deal not found' })
-      return
+      throw new NotFoundError('Deal')
     }
 
     if (existing.organizationId !== req.user.organizationId) {
-      res.status(403).json({ error: 'Access denied' })
-      return
+      throw new ForbiddenError()
     }
 
     await this.dealUseCases.deleteDeal(id)
